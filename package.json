@@ -20,6 +20,11 @@
       "type": "object",
       "title": "Ollama Autocomplete and Chat Configuration",
       "properties": {
+        "ollamaAutocompleteChat.activarAutocompletado": {
+          "type": "boolean",
+          "default": true,
+          "description": "Activar o desactivar el autocompletado de código usando Ollama"
+        },
         "ollamaAutocompleteChat.model": {
           "type": "string",
           "default": "llama3",

@@ -8,20 +8,37 @@ let currentController: AbortController | null = null;
 let requestId = 0;
 let endpoint = "http://localhost:11434/api/generate";
 let model = "llama3";
+let activarAutocompletado = true;
 let pre_prompt_explicarSeleccion = ""
 let pre_prompt_modificarSeleccion = ""
 let pre_prompt_autoCompletado = ""
+let inlineCompletionDisposable: vscode.Disposable | undefined;
 export function activate(context: vscode.ExtensionContext) {
-    registrarBotonesAyudaSeleccion(context)
-    registrarAutocompletado(context)
-    registrarComandos(context)
-
     getConfig()
+
+    registrarBotonesAyudaSeleccion(context)
+    registrarComandos(context)
+    actualizarRegistroAutocompletado()
+
+    context.subscriptions.push({
+        dispose: () => {
+            inlineCompletionDisposable?.dispose();
+            inlineCompletionDisposable = undefined;
+        }
+    });
 
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('ollamaAutocompleteChat.model') || e.affectsConfiguration('ollamaAutocompleteChat.endpoint') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_explicarSeleccion') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_modificarSeleccion') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_autoCompletado')) {
+            if (
+                e.affectsConfiguration('ollamaAutocompleteChat.activarAutocompletado') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.model') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.endpoint') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.promptExplicarSeleccion') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.promptModificarSeleccion') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.promptAutoCompletado')
+            ) {
                 getConfig();
+                actualizarRegistroAutocompletado();
             }
         })
     );
@@ -29,11 +46,24 @@ export function activate(context: vscode.ExtensionContext) {
 
 function getConfig() {
     const config = vscode.workspace.getConfiguration('ollamaAutocompleteChat');
+    activarAutocompletado = config.get<boolean>('activarAutocompletado') ?? true;
     model = config.get<string>('model') || 'llama3';
     endpoint = config.get<string>('endpoint') || 'http://localhost:11434/api/generate';
     pre_prompt_explicarSeleccion = config.get<string>('promptExplicarSeleccion') || '';
     pre_prompt_modificarSeleccion = config.get<string>('promptModificarSeleccion') || '';
     pre_prompt_autoCompletado = config.get<string>('promptAutoCompletado') || '';
+}
+
+function actualizarRegistroAutocompletado() {
+    if (!activarAutocompletado) {
+        inlineCompletionDisposable?.dispose();
+        inlineCompletionDisposable = undefined;
+        return;
+    }
+
+    if (!inlineCompletionDisposable) {
+        inlineCompletionDisposable = registrarAutocompletado();
+    }
 }
 
 function registrarComandos(context: vscode.ExtensionContext) {
@@ -191,14 +221,17 @@ function registrarBotonesAyudaSeleccion(context: vscode.ExtensionContext) {
 }
 
 
-function registrarAutocompletado(context: vscode.ExtensionContext) {
-    context.subscriptions.push(
-        vscode.languages.registerInlineCompletionItemProvider(
-            { pattern: '**' },
-            {
-                provideInlineCompletionItems(document, position) {
+function registrarAutocompletado(): vscode.Disposable {
+    return vscode.languages.registerInlineCompletionItemProvider(
+        { pattern: '**' },
+        {
+            provideInlineCompletionItems(document, position) {
 
-                    return new Promise((resolve) => {
+                return new Promise((resolve) => {
+
+                    if (!activarAutocompletado) {
+                        return resolve([]);
+                    }
 
                         if (debounceTimer) {
                             clearTimeout(debounceTimer);
@@ -256,10 +289,9 @@ function registrarAutocompletado(context: vscode.ExtensionContext) {
 
                         }, 600); // ⏱️ tiempo de espera (ajústalo)
 
-                    });
-                }
+                });
             }
-        )
+        }
     );
 }
 
