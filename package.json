@@ -29,6 +29,24 @@
           "type": "string",
           "default": "http://localhost:11434/api/generate",
           "description": "URL del endpoint de Ollama para generar respuestas"
+        },
+        "ollamaAutocompleteChat.promptExplicarSeleccion": {
+          "type": "string",
+          "default": "Explica este código en formato Markdown bien estructurado. {user-prompt}El siguiente código está en lenguaje {document-language}:\n{selected-text}",
+          "description": "Prompt que se enviará a Ollama para explicar la selección de código. Usa las variables {document-language}, {selected-text} y {user-prompt} para personalizar el prompt",
+          "editPresentation": "multilineText"
+        },
+        "ollamaAutocompleteChat.promptModificarSeleccion": {
+          "type": "string",
+          "default": "Eres un agente que me ayudará a programar en {document-language}. En las respuestas solo devuelves código y comentarios, sin texto adicional. Haz el siguiente cambio:\n{user-prompt}\n\nEl código en el que debes hacer el cambio es este:\n{selected-text}",
+          "description": "Prompt que se enviará a Ollama para modificar la selección de código. Usa las variables {document-language}, {selected-text} y {user-prompt} para personalizar el prompt",
+          "editPresentation": "multilineText"
+        },
+        "ollamaAutocompleteChat.promptAutoCompletado": {
+          "type": "string",
+          "default": "Eres un agente que autocompleta código en lenguaje {document-language}. Solo respondes con código y comentarios. No repitas código. Continúa este bloque, y si es un comentario, inserta un salto de línea al principio:\n{selected-text}",
+          "description": "Prompt que se enviará a Ollama para autocompletado de código. Usa las variables {document-language} y {selected-text} para personalizar el prompt",
+          "editPresentation": "multilineText"
         }
       }
     }
@@ -41,6 +59,10 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "dependencies": {
+    "node-fetch": "3.3.2",
+    "marked": "18.0.3"
+  },
   "devDependencies": {
     "@types/vscode": "^1.118.0",
     "@types/mocha": "^10.0.10",
@@ -49,8 +71,6 @@
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2",
-    "node-fetch": "3.3.2",
-    "marked": "18.0.3"
+    "@vscode/test-electron": "^2.5.2"
   }
 }

@@ -3,13 +3,14 @@ import fetch from 'node-fetch';
 import { marked } from "marked";
 
 
-// Debug
-var llamadas = 0;
 let debounceTimer: NodeJS.Timeout | undefined;
 let currentController: AbortController | null = null;
 let requestId = 0;
 let endpoint = "http://localhost:11434/api/generate";
 let model = "llama3";
+let pre_prompt_explicarSeleccion = ""
+let pre_prompt_modificarSeleccion = ""
+let pre_prompt_autoCompletado = ""
 export function activate(context: vscode.ExtensionContext) {
     registrarBotonesAyudaSeleccion(context)
     registrarAutocompletado(context)
@@ -19,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('ollamaAutocompleteChat.model') || e.affectsConfiguration('ollamaAutocompleteChat.endpoint')) {
+            if (e.affectsConfiguration('ollamaAutocompleteChat.model') || e.affectsConfiguration('ollamaAutocompleteChat.endpoint') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_explicarSeleccion') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_modificarSeleccion') || e.affectsConfiguration('ollamaAutocompleteChat.pre_prompt_autoCompletado')) {
                 getConfig();
             }
         })
@@ -30,25 +31,33 @@ function getConfig() {
     const config = vscode.workspace.getConfiguration('ollamaAutocompleteChat');
     model = config.get<string>('model') || 'llama3';
     endpoint = config.get<string>('endpoint') || 'http://localhost:11434/api/generate';
+    pre_prompt_explicarSeleccion = config.get<string>('promptExplicarSeleccion') || '';
+    pre_prompt_modificarSeleccion = config.get<string>('promptModificarSeleccion') || '';
+    pre_prompt_autoCompletado = config.get<string>('promptAutoCompletado') || '';
 }
 
 function registrarComandos(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('ollamaAutocompleteChat.explicarSeleccion', async (selectedText, documentLanguage) => {
+            var userPrompt: any = ""
+            if (pre_prompt_explicarSeleccion.includes("{user-prompt}")) {
+                userPrompt = await vscode.window.showInputBox({
+                    placeHolder: "Formato de respuesta, explicar una parte concreta, etc",
+                    prompt: "¿Quieres información adicional?",
+                });
 
-            var userPrompt = await vscode.window.showInputBox({
-                placeHolder: "Formato de respuesta, explicar una parte concreta, etc",
-                prompt: "¿Quieres información adicional?",
-            });
-
-            if (!userPrompt) {
-                userPrompt = ""
-            }else{
-                userPrompt += ". "
+                if (!userPrompt) {
+                    userPrompt = ""
+                } else {
+                    userPrompt += ". "
+                }
             }
-            
+
+
+            var prompt = pre_prompt_explicarSeleccion.replaceAll("{document-language}", documentLanguage).replaceAll("{selected-text}", selectedText).replaceAll("{user-prompt}", userPrompt)
+            //  `Explica este código en formato Markdown bien estructurado. ${userPrompt}El siguiente código está en lenguaje ${documentLanguage}:\n${selectedText}`
             const explicacion = await askOllama(
-                `Explica este código en formato Markdown bien estructurado. ${userPrompt}El siguiente código está en lenguaje ${documentLanguage}:\n${selectedText}`
+                prompt
             );
 
             renderizarRespuestaOllama(explicacion)
@@ -58,7 +67,7 @@ function registrarComandos(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('ollamaAutocompleteChat.modificarSeleccion', async (selectedText: string, selectionRange: vscode.Range, documentLanguage: string) => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) return;
-            
+
             const userPrompt = await vscode.window.showInputBox({
                 placeHolder: "Ej: Convierte esto a una función más eficiente",
                 prompt: "¿Qué quieres modificar del código seleccionado?",
@@ -67,14 +76,15 @@ function registrarComandos(context: vscode.ExtensionContext) {
             if (!userPrompt) {
                 return
             }
-            const explicacion = await requestCodeOllama(
-                `Eres un agente que me ayudará a programar en ${documentLanguage}. En las respuestas solo devuelves código y comentarios, sin texto adicional. Haz el siguiente cambio:\n${userPrompt}\n\nEl código en el que debes hacer el cambio es este:\n${selectedText}`,
+            var prompt = pre_prompt_modificarSeleccion.replaceAll("{document-language}", documentLanguage).replaceAll("{selected-text}", selectedText).replaceAll("{user-prompt}", userPrompt)
+            const modificacion = await requestCodeOllama(
+                prompt,
                 null
             );
-            
+
             await editor.edit(editBuilder => {
-            editBuilder.replace(selectionRange, explicacion);
-        });
+                editBuilder.replace(selectionRange, modificacion);
+            });
         })
     );
 }
@@ -205,8 +215,7 @@ function registrarAutocompletado(context: vscode.ExtensionContext) {
                                     position
                                 )
                             );
-                            contextText = `Eres un agente que autocompleta código en lenguaje ${document.languageId}. Solo respondes con código y comentarios. No repitas código. Continúa este bloque, y si es un comentario, inserta un salto de línea al principio:\n${contextText}`
-
+                            var prompt = pre_prompt_autoCompletado.replaceAll("{document-language}", document.languageId).replaceAll("{selected-text}", contextText)
                             const linePrefix = document.lineAt(position).text.substring(0, position.character);
 
                             if (linePrefix.trim() === "") {
@@ -221,7 +230,7 @@ function registrarAutocompletado(context: vscode.ExtensionContext) {
                             currentController = new AbortController();
 
                             try {
-                                const suggestion = await requestCodeOllama(contextText, currentController.signal);
+                                const suggestion = await requestCodeOllama(prompt, currentController.signal);
 
                                 // Si llegó una petición más nueva → ignorar esta
                                 if (myRequestId !== requestId) {
@@ -232,7 +241,6 @@ function registrarAutocompletado(context: vscode.ExtensionContext) {
                                     return resolve([]);
                                 }
 
-                                console.log("Código sugerido:\n" + suggestion);
 
                                 resolve([
                                     new vscode.InlineCompletionItem(
@@ -263,14 +271,14 @@ function registrarAutocompletado(context: vscode.ExtensionContext) {
 
 function cleanCode(response: string): string {
     return response
-        .replace(/```[\w]*\n?/g, '') 
+        .replace(/```[\w]*\n?/g, '')
         .replace(/```/g, '')
         .trim();
 }
 
 
 
-async function callOllama(prompt: string, signal: AbortSignal | null = null){
+async function callOllama(prompt: string, signal: AbortSignal | null = null) {
     return await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -286,18 +294,14 @@ async function callOllama(prompt: string, signal: AbortSignal | null = null){
 
 async function requestCodeOllama(prompt: string, signal: AbortSignal | null): Promise<string> {
 
-    // Debug
-    llamadas++;
 
     if (prompt.trim() === "") {
         return "";
     }
-    // Debug
-    console.log("Llamadas: " + llamadas);
 
     const res = await callOllama(prompt, signal)
 
-    const data : any = await res.json();
+    const data: any = await res.json();
     return cleanCode(data.response);
 }
 async function askOllama(prompt: string): Promise<string> {
@@ -310,7 +314,7 @@ async function askOllama(prompt: string): Promise<string> {
 
     const res = await callOllama(prompt)
 
-    const data : any = await res.json();
+    const data: any = await res.json();
     return data.response;
 }
 
