@@ -1,13 +1,18 @@
 {
   "name": "llama3-autocomplete-and-chat",
-  "displayName": "llama3 Autocomplete and Chat",
+  "displayName": "Llama3 Autocomplete and Chat",
   "description": "Conecta con Ollama usando el modelo llama3 para acceder a un chat en local y autocompletar código",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "author": {
+    "name": "MarcosNoDeFotos",
+    "email": "marcosnodefotos@gmail.com",
+    "url": "https://github.com/MarcosNoDeFotos"
+  },
   "engines": {
     "vscode": "^1.118.0"
   },
   "categories": [
-    "Other"
+    "AI"
   ],
   "repository": {
     "type": "git",
@@ -52,6 +57,12 @@
           "default": "Eres un agente que autocompleta código en lenguaje {document-language}. Solo respondes con código y comentarios. No repitas código. Continúa este bloque, y si es un comentario, inserta un salto de línea al principio:\n{selected-text}",
           "description": "Prompt que se enviará a Ollama para autocompletado de código. Usa las variables {document-language} y {selected-text} para personalizar el prompt",
           "editPresentation": "multilineText"
+        },
+        "ollamaAutocompleteChat.numeroLineasContexto": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Número de líneas de contexto que se enviarán a Ollama para autocompletado de código. Se tomarán las {numeroLineasContexto} líneas anteriores a la posición del cursor para proporcionar contexto al modelo"
         }
       }
     }

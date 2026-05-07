@@ -12,6 +12,7 @@ let activarAutocompletado = true;
 let pre_prompt_explicarSeleccion = ""
 let pre_prompt_modificarSeleccion = ""
 let pre_prompt_autoCompletado = ""
+let numeroLineasContexto = 20;
 let inlineCompletionDisposable: vscode.Disposable | undefined;
 export function activate(context: vscode.ExtensionContext) {
     getConfig()
@@ -35,7 +36,8 @@ export function activate(context: vscode.ExtensionContext) {
                 e.affectsConfiguration('ollamaAutocompleteChat.endpoint') ||
                 e.affectsConfiguration('ollamaAutocompleteChat.promptExplicarSeleccion') ||
                 e.affectsConfiguration('ollamaAutocompleteChat.promptModificarSeleccion') ||
-                e.affectsConfiguration('ollamaAutocompleteChat.promptAutoCompletado')
+                e.affectsConfiguration('ollamaAutocompleteChat.promptAutoCompletado') ||
+                e.affectsConfiguration('ollamaAutocompleteChat.numeroLineasContexto')
             ) {
                 getConfig();
                 actualizarRegistroAutocompletado();
@@ -52,6 +54,7 @@ function getConfig() {
     pre_prompt_explicarSeleccion = config.get<string>('promptExplicarSeleccion') || '';
     pre_prompt_modificarSeleccion = config.get<string>('promptModificarSeleccion') || '';
     pre_prompt_autoCompletado = config.get<string>('promptAutoCompletado') || '';
+    numeroLineasContexto = config.get<number>('numeroLineasContexto') || 20;
 }
 
 function actualizarRegistroAutocompletado() {
@@ -241,7 +244,7 @@ function registrarAutocompletado(): vscode.Disposable {
 
                             const myRequestId = ++requestId;
 
-                            const startLine = Math.max(0, position.line - 20);
+                            const startLine = Math.max(0, position.line - numeroLineasContexto);
                             var contextText = document.getText(
                                 new vscode.Range(
                                     new vscode.Position(startLine, 0),
